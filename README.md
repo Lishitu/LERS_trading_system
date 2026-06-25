@@ -229,16 +229,20 @@
 
 **输出**：`data/processed/features.parquet`
 
-**特征清单（共 8 大类）**：
+**特征清单（共 11 大类，约 60+ 个特征）**：
 
 #### 3.1 动量特征（Momentum）
 | 特征名 | 计算公式 |
 |--------|----------|
 | ret_1d | close / close.shift(1) - 1 |
+| ret_3d | close / close.shift(3) - 1 |
 | ret_5d | close / close.shift(5) - 1 |
 | ret_10d | close / close.shift(10) - 1 |
 | ret_20d | close / close.shift(20) - 1 |
 | ret_60d | close / close.shift(60) - 1 |
+| ret_120d | close / close.shift(120) - 1 |
+| mom_5_20 | ret_5d - ret_20d（动量加速度） |
+| mom_20_60 | ret_20d - ret_60d |
 
 #### 3.2 均线特征（Moving Average）
 | 特征名 | 说明 |
@@ -249,10 +253,14 @@
 | ma60 | 60 日均线 |
 | ma120 | 120 日均线 |
 | ma200 | 200 日均线 |
+| ma5_ma20_ratio | ma5 / ma20 - 1（短长均线比） |
+| ma20_ma60_ratio | ma20 / ma60 - 1 |
+| ma20_ma200_ratio | ma20 / ma200 - 1 |
 
 #### 3.3 距离特征（Distance to MA）
 | 特征名 | 计算公式 |
 |--------|----------|
+| dist_ma5 | close / ma5 - 1 |
 | dist_ma20 | close / ma20 - 1 |
 | dist_ma60 | close / ma60 - 1 |
 | dist_ma200 | close / ma200 - 1 |
@@ -263,40 +271,95 @@
 | vol_5 | 5 日收益率标准差（年化） |
 | vol_20 | 20 日收益率标准差（年化） |
 | vol_60 | 60 日收益率标准差（年化） |
+| vol_120 | 120 日收益率标准差（年化） |
+| vol_5_vol_20_ratio | vol_5 / vol_20（短期/长期波动比） |
+| vol_20_vol_60_ratio | vol_20 / vol_60 |
 
-#### 3.5 VIX 特征
+#### 3.5 价量形态特征（Price-Volume Pattern）
+| 特征名 | 计算公式 / 说明 |
+|--------|-----------------|
+| volume_ret_1d | volume / volume.shift(1) - 1（成交量变化率） |
+| volume_ma5 | 5 日均量 |
+| volume_ma20 | 20 日均量 |
+| volume_ratio_5_20 | volume / volume_ma20（量比） |
+| obv | 累积能量潮（On-Balance Volume） |
+| obv_5d_change | obv / obv.shift(5) - 1 |
+| price_volume_divergence | ret_5d 与 volume_ret_5d 的符号是否一致（量价背离标记） |
+| close_position | (close - low) / (high - low)（收盘价在当日K线位置，0~1） |
+| upper_shadow | (high - max(open, close)) / (high - low)（上影线比例） |
+| lower_shadow | (min(open, close) - low) / (high - low)（下影线比例） |
+| body_size | abs(close - open) / (high - low)（实体比例） |
+| high_low_range | (high - low) / close（振幅） |
+| high_low_range_ma20 | 20 日均振幅 |
+
+#### 3.6 VIX 特征
 | 特征名 | 计算公式 |
 |--------|----------|
 | vix_level | VIX 当日收盘价 |
+| vix_change_1d | vix / vix.shift(1) - 1 |
 | vix_change_5d | vix / vix.shift(5) - 1 |
+| vix_change_20d | vix / vix.shift(20) - 1 |
 | vix_ma20_ratio | vix / vix_ma20 - 1 |
+| vix_ma60_ratio | vix / vix_ma60 - 1 |
+| vix_quantile_60d | VIX 在过去 60 天的分位数（0~1） |
 
-#### 3.6 相对强弱特征（Relative Strength）
+#### 3.7 相对强弱特征（Relative Strength / Breadth）
 | 特征名 | 计算公式 |
 |--------|----------|
 | rs_qv_spy | QQQ / SPY 比值 |
 | rs_qv_spy_ret_5d | (QQQ/SPY) / (QQQ/SPY).shift(5) - 1 |
 | rs_qv_spy_ret_20d | (QQQ/SPY) / (QQQ/SPY).shift(20) - 1 |
+| rs_qv_spy_ret_60d | (QQQ/SPY) / (QQQ/SPY).shift(60) - 1 |
 
-#### 3.7 利率特征（Interest Rate）
+#### 3.8 市场广度特征（Market Breadth）
+> 使用 SPY 代理整体市场广度
+
+| 特征名 | 计算公式 / 说明 |
+|--------|-----------------|
+| spy_ret_1d | SPY 当日收益率 |
+| spy_ret_5d | SPY 5日收益率 |
+| spy_ret_20d | SPY 20日收益率 |
+| spy_vol_20 | SPY 20日波动率 |
+| spy_dist_ma200 | SPY 距 200 日均线距离 |
+| spy_high_252d_ratio | SPY 收盘价 / 过去252日最高价（接近高点程度） |
+| spy_low_252d_ratio | SPY 收盘价 / 过去252日最低价（远离低点程度） |
+| new_high_low_diff | （代理：SPY 52周新高/新低状态） |
+
+#### 3.9 利率特征（Interest Rate / Macro）
 | 特征名 | 计算公式 |
 |--------|----------|
-| tnx_level | TNX 当日收益率 |
+| tnx_level | TNX 10年期美债收益率 |
+| tnx_change_1d | tnx / tnx.shift(1) - 1 |
 | tnx_change_5d | tnx / tnx.shift(5) - 1 |
+| tnx_change_20d | tnx / tnx.shift(20) - 1 |
+| tnx_ma20_ratio | tnx / tnx_ma20 - 1 |
+| yield_curve_slope | （代理：TNX 自身水平 + 变化率，反映利率环境） |
 
-#### 3.8 美元特征（Dollar）
+#### 3.10 美元特征（Dollar / Macro）
 | 特征名 | 计算公式 |
 |--------|----------|
-| dxy_level | DXY 当日收盘 |
+| dxy_level | DXY 美元指数 |
+| dxy_change_1d | dxy / dxy.shift(1) - 1 |
 | dxy_change_5d | dxy / dxy.shift(5) - 1 |
+| dxy_change_20d | dxy / dxy.shift(20) - 1 |
+| dxy_ma20_ratio | dxy / dxy_ma20 - 1 |
+| dxy_trend_60d | dxy / dxy.shift(60) - 1（美元中期趋势） |
+
+#### 3.11 交叉宏观因子（Cross-Asset Macro）
+| 特征名 | 计算公式 / 说明 |
+|--------|-----------------|
+| vix_spy_corr_20d | VIX 变化率 与 SPY 收益率 20日滚动相关（恐慌联动性） |
+| dxy_tnx_corr_20d | DXY 变化率 与 TNX 变化率 20日滚动相关 |
+| gold_silver_ratio | （可选，暂不纳入 MVP，用 DXY 代理） |
 
 **具体步骤**：
 1. 在 `src/feature_engineering.py` 中实现 `FeatureEngineer` 类
-2. 实现 `load_raw_data()` 方法：加载所有原始 CSV
-3. 为每类特征实现一个计算方法（如 `_calc_momentum()`, `_calc_ma()` 等）
-4. 实现 `build_features()` 主方法：组合所有特征
-5. 输出为 Parquet 格式保存到 `data/processed/features.parquet`
-6. 特征以 QQQ 为基准对齐时间索引
+2. 实现 `load_raw_data()` 方法：加载所有原始 CSV（QQQ, TQQQ, SQQQ, SPY, VIX, TNX, DXY）
+3. 为每类特征实现一个计算方法（如 `_calc_momentum()`, `_calc_ma()`, `_calc_price_volume()` 等）
+4. 实现 `build_features()` 主方法：组合所有特征，按日期对齐
+5. 实现 `_remove_outliers()` 方法：处理极端值和 Inf
+6. 输出为 Parquet 格式保存到 `data/processed/features.parquet`
+7. 特征以 QQQ 为基准对齐时间索引
 
 **交付文件**：
 - `src/feature_engineering.py`
@@ -304,21 +367,22 @@
 
 **验证方式**：
 - 特征矩阵行数 = QQQ 交易日天数
-- 特征列数 >= 25 列
+- 特征列数 >= 50 列
 - 无 Inf 或 NaN（去除初始窗口的 NaN 行后）
-- 特征值范围合理（如收益率不会超过 50%/天）
+- 特征值范围合理（如日收益率绝对值 < 20%）
+- 每类特征都有对应的列，命名规范统一
 
 ---
 
-### Phase 4: 标签生成
+### Phase 4: 标签生成与阈值敏感性分析
 
-**目标**：基于未来收益生成市场状态标签。
+**目标**：基于未来收益生成市场状态标签，并分析不同阈值对标签分布和策略的影响。
 
 **输入**：QQQ 的收盘价序列
 
-**输出**：带有 label 列的特征表
+**输出**：带有 label 列的特征表 + 阈值敏感性分析报告
 
-**标签规则**：
+**标签规则（默认配置）**：
 
 使用未来 5 个交易日的收益率来定义市场状态：
 
@@ -332,6 +396,27 @@ future_ret_5d = close.shift(-5) / close - 1
 | < -2% | Risk-Off | 0 |
 | -2% ~ +2% | Neutral | 1 |
 
+**阈值敏感性分析**：
+
+由于 ±2% 的阈值具有主观性，需要对多个阈值进行对比分析，选择最优配置：
+
+| 阈值方案 | 上涨阈值 | 下跌阈值 | 预期标签分布 | 适用场景 |
+|----------|----------|----------|--------------|----------|
+| 保守 | ±1.0% | ±1.0% | 极端样本少，中性多 | 低换手、稳健型 |
+| 偏保守 | ±1.5% | ±1.5% | 平衡偏中性 | 通用型 |
+| **基准（默认）** | **±2.0%** | **±2.0%** | **三类均衡** | **标准方案** |
+| 偏激进 | ±2.5% | ±2.5% | 极端样本多，中性少 | 高换手、进攻型 |
+| 激进 | ±3.0% | ±3.0% | 极端样本很少，中性极多 | 低频交易型 |
+| 非对称 | +1.5% | -2.5% | 下跌更严格 | 风险厌恶型 |
+| 分位数法 | top 30% | bottom 30% | 各约 30% / 40% / 30% | 分布自适应 |
+
+**分析维度**：
+1. **标签分布**：各阈值下三类标签的数量比例
+2. **模型准确率**：各阈值下模型的分类准确率
+3. **策略收益**：各阈值下回测的年化收益、夏普、回撤
+4. **换手率**：各阈值下的交易频率
+5. **稳定性**：不同市场环境下各阈值的表现一致性
+
 **具体步骤**：
 1. 在 `src/label_generator.py` 中实现 `LabelGenerator` 类
 2. 实现 `generate_labels()` 方法：
@@ -340,17 +425,29 @@ future_ret_5d = close.shift(-5) / close - 1
 3. 可配置参数：
    - `horizon`: 预测天数（默认 5）
    - `threshold`: 分类阈值（默认 0.02）
-4. 将标签合并到特征表中
-5. 输出带标签的完整数据集
+   - `threshold_up`: 上涨阈值（非对称时使用）
+   - `threshold_down`: 下跌阈值（非对称时使用）
+   - `use_quantile`: 是否使用分位数法（默认 False）
+   - `quantile`: 分位数比例（默认 0.3）
+4. 实现 `threshold_sensitivity_analysis()` 方法：
+   - 遍历多个阈值方案
+   - 计算各方案的标签分布
+   - 输出对比表格
+5. 将标签合并到特征表中
+6. 输出带标签的完整数据集
+7. 保存阈值分析结果到 `reports/threshold_analysis.csv`
 
 **交付文件**：
 - `src/label_generator.py`
 - 更新后的 `data/processed/features.parquet`（含 label 列）
+- `reports/threshold_analysis.csv`（阈值敏感性分析结果）
 
 **验证方式**：
 - 三类标签的分布比例合理（没有某类 > 80% 或 < 5%）
 - 没有未来函数泄露（检查 shift 方向是否正确）
 - 最后 5 行的 label 为 NaN（合理，因为没有未来数据）
+- 阈值敏感性分析覆盖至少 5 种方案
+- 各阈值方案的标签数量之和 = 总样本数
 
 ---
 
@@ -401,25 +498,25 @@ future_ret_5d = close.shift(-5) / close - 1
 
 ---
 
-### Phase 6: 组合决策引擎
+### Phase 6: 组合决策引擎与交易成本模拟
 
-**目标**：将模型预测概率转换为具体的交易仓位。
+**目标**：将模型预测概率转换为具体的交易仓位，并模拟真实交易成本。
 
-**输入**：每日预测概率
+**输入**：每日预测概率 + TQQQ/SQQQ 价格数据
 
-**输出**：每日持仓信号
+**输出**：每日持仓信号 + 扣除成本后的净值曲线
 
 **决策规则**：
 
 ```
 若 P(RiskOn) > 0.60:
-    持有 TQQQ（3x 做多）
+    目标仓位 = TQQQ（3x 做多）
 
 否则若 P(RiskOff) > 0.60:
-    持有 SQQQ（3x 做空）
+    目标仓位 = SQQQ（3x 做空）
 
 否则:
-    持有 Cash（现金）
+    目标仓位 = Cash（现金）
 ```
 
 **执行规则**：
@@ -431,6 +528,33 @@ future_ret_5d = close.shift(-5) / close - 1
 - 每次只持有一种仓位（TQQQ / SQQQ / Cash 三选一）
 - 满仓进出，不加杠杆叠加
 
+**交易成本与滑点模拟**：
+
+为了让回测更贴近实盘，必须计入以下成本：
+
+| 成本项 | 默认值 | 说明 | 可调参数 |
+|--------|--------|------|----------|
+| **佣金 (Commission)** | 0.0005（5 bps） | 每次买卖的交易佣金 | `commission_bps` |
+| **滑点 (Slippage)** | 0.0010（10 bps） | 买卖价差与市场冲击成本 | `slippage_bps` |
+| **买卖价差 (Spread)** | 已含在滑点中 | 杠杆 ETF 点差较大 | 合并入滑点 |
+| **融资成本 (Financing)** | 0.0002 / 日（~5%/年） | 杠杆 ETF 的隐含融资成本（持有期间扣除） | `financing_cost_daily` |
+
+> **注意**：TQQQ/SQQQ 这类杠杆 ETF 的总成本 = 管理费（约 0.95%/年）+ 融资成本（约 3-5%/年）+ 交易成本。
+> 回测中简化为：每次换手扣除佣金+滑点，持有期间按日扣除融资成本。
+
+**成本计算公式**：
+
+```
+换手成本 = 目标仓位 != 前日持仓 时扣除:
+    卖出成本 = 前日仓位价值 × (commission + slippage)
+    买入成本 = 新仓位价值 × (commission + slippage)
+
+持有成本（仅持有杠杆ETF时）:
+    日融资成本 = 持仓价值 × financing_cost_daily
+
+净值_t = 净值_{t-1} × (1 + 当日收益率) - 当日成本
+```
+
 **具体步骤**：
 1. 在 `src/portfolio_engine.py` 中实现 `PortfolioEngine` 类
 2. 实现 `generate_signals()` 方法：
@@ -438,9 +562,21 @@ future_ret_5d = close.shift(-5) / close - 1
    - 根据阈值规则生成每日目标仓位
 3. 实现 `apply_execution_lag()` 方法：
    - 将信号后移一天（次日开盘执行）
-4. 可配置参数：
+4. 实现 `calculate_daily_returns()` 方法：
+   - 根据持仓计算每日收益率
+   - 使用开盘价计算换仓收益，收盘价计算持有收益
+5. 实现 `apply_transaction_costs()` 方法：
+   - 换手时扣除佣金 + 滑点
+   - 持有杠杆 ETF 时扣除每日融资成本
+6. 实现 `calculate_nav()` 方法：
+   - 计算累计净值曲线
+7. 可配置参数：
    - `risk_on_threshold`（默认 0.60）
    - `risk_off_threshold`（默认 0.60）
+   - `commission_bps`（默认 5 bps）
+   - `slippage_bps`（默认 10 bps）
+   - `financing_cost_daily`（默认 0.0002/日）
+   - `include_costs`（默认 True，可关闭成本用于对比）
 
 **交付文件**：
 - `src/portfolio_engine.py`
@@ -449,6 +585,9 @@ future_ret_5d = close.shift(-5) / close - 1
 - 持仓只有三种状态：TQQQ、SQQQ、Cash
 - 信号有合理的换手率（不是每天都换）
 - 执行滞后正确（T 日信号 → T+1 日持仓）
+- 有成本 vs 无成本的净值曲线存在合理差异
+- 换手次数 × 单次成本 ≈ 总交易成本（量级校验）
+- 融资成本仅在持有 TQQQ/SQQQ 时扣除，Cash 时不扣除
 
 ---
 
@@ -458,51 +597,80 @@ future_ret_5d = close.shift(-5) / close - 1
 
 **输入**：特征 + 标签 + 模型 + 组合引擎
 
-**输出**：样本外每日收益序列
+**输出**：样本外每日收益序列 + 多窗口对比分析
 
 **为什么用 Walk-Forward**：
 - ❌ **禁止**使用随机划分训练集/测试集（数据泄露风险）
 - ✅ **必须**使用时间序列滚动验证
 
-**Walk-Forward 方案**：
+**Walk-Forward 方案对比**：
+
+提供三种滚动频率和两种窗口模式，灵活组合：
+
+| 配置项 | 选项 | 说明 | 默认 |
+|--------|------|------|------|
+| **滚动频率** | `yearly` | 每年重训练一次 | 是 |
+| | `quarterly` | 每季度重训练一次 | 推荐 |
+| | `monthly` | 每月重训练一次 | 可选 |
+| **窗口模式** | `expanding` | 扩张窗口（训练数据越来越多） | 是 |
+| | `rolling` | 固定滚动窗口（如最近5年） | 可选 |
+| **窗口大小** | 自定义 | 仅 rolling 模式需要 | 5 年 |
+
+**推荐方案（默认+对比）**：
 
 ```
-示例（年频滚动）：
-
+方案 A - 年频扩张（基准，较慢）
 第1轮:  Train: 2011-2018  |  Test: 2019
 第2轮:  Train: 2011-2019  |  Test: 2020
-第3轮:  Train: 2011-2020  |  Test: 2021
-第4轮:  Train: 2011-2021  |  Test: 2022
-第5轮:  Train: 2011-2022  |  Test: 2023
-第6轮:  Train: 2011-2023  |  Test: 2024
+...
+
+方案 B - 季频扩张（推荐，更快适应市场）
+第1轮:  Train: 2011-2018Q4 |  Test: 2019Q1
+第2轮:  Train: 2011-2019Q1 |  Test: 2019Q2
+第3轮:  Train: 2011-2019Q2 |  Test: 2019Q3
+...
+
+方案 C - 季频滚动 5 年（可选，适应市场结构变化）
+第1轮:  Train: 2014Q1-2018Q4 |  Test: 2019Q1
+第2轮:  Train: 2014Q2-2019Q1 |  Test: 2019Q2
 ...
 ```
 
-- 训练窗口：**扩张式**（从 2011 年开始，逐年累加）
-- 测试窗口：**1 年**
-- 最终结果：拼接所有年份的样本外预测
+**方案选择建议**：
+- **方案 A（年频）**：计算量小，用于快速验证
+- **方案 B（季频扩张）**：平衡计算量和适应性，**推荐作为主方案**
+- **方案 C（季频滚动）**：更贴近实盘，适合最终验证
 
 **具体步骤**：
 1. 在 `src/walkforward.py` 中实现 `WalkForwardValidator` 类
 2. 实现 `generate_splits()` 方法：
-   - 按年份划分训练/测试集
-   - 训练集始终包含 2011 年到测试年前一年
-3. 实现 `run()` 方法：
+   - 支持按年/季/月划分训练/测试集
+   - 支持 expanding 和 rolling 两种窗口模式
+   - rolling 模式下窗口大小可配置（`window_years`）
+3. 实现 `_split_by_year()` / `_split_by_quarter()` / `_split_by_month()` 子方法
+4. 实现 `run()` 方法：
    - 遍历每个 split
-   - 在训练集上训练模型
-   - 在测试集上预测
+   - 在训练集上训练模型（支持 LightGBM 主模型）
+   - 在测试集上预测（输出三类概率）
+   - 通过组合引擎生成仓位和收益
    - 收集所有样本外预测结果
-4. 输出完整的样本外预测序列
+5. 实现 `compare_schemes()` 方法：
+   - 运行多种 Walk-Forward 方案
+   - 输出各方案的绩效对比表
+6. 输出完整的样本外预测序列和收益序列
 
 **交付文件**：
 - `src/walkforward.py`
-- 样本外预测结果（CSV 或 Parquet）
+- 样本外预测结果（Parquet）
+- Walk-Forward 方案对比报告（CSV / 控制台输出）
 
 **验证方式**：
 - 测试集没有重叠
-- 训练集不包含任何测试集日期
-- 样本外结果覆盖所有测试年份
-- 能复现每个测试年份的预测
+- 训练集不包含任何测试集日期（无未来函数）
+- 样本外结果覆盖所有测试年份/季度
+- 能复现每个测试周期的预测
+- 不同滚动频率的结果有合理差异（不是完全一致）
+- rolling 窗口的训练数据量保持恒定
 
 ---
 
@@ -801,28 +969,46 @@ jupyter>=1.0.0
 > **验收**：运行 `python src/data_loader.py` 后，data/raw/ 下有 7 个 CSV 文件，每个文件包含 OHLCV 列。
 
 #### Phase 3: 特征工程
-> **任务**：实现特征计算
+> **任务**：实现特征计算（11大类，60+个特征）
 >
 > **指令**：
 > "在 src/feature_engineering.py 中实现 FeatureEngineer 类。
-> 实现 8 大类特征的计算：动量(ret_1d/5d/10d/20d/60d)、均线(ma5/10/20/60/120/200)、距离(dist_ma20/60/200)、波动率(vol_5/20/60)、VIX、相对强弱(QQQ/SPY)、利率(TNX)、美元(DXY)。
-> 从 data/raw/ 加载所有 CSV，以 QQQ 日期为基准对齐。
+> 实现 11 大类特征的计算：
+>   1. 动量特征：ret_1d/3d/5d/10d/20d/60d/120d, mom_5_20, mom_20_60
+>   2. 均线特征：ma5/10/20/60/120/200, ma5_ma20_ratio, ma20_ma60_ratio, ma20_ma200_ratio
+>   3. 距离特征：dist_ma5/20/60/200
+>   4. 波动率特征：vol_5/20/60/120, vol_5_vol_20_ratio, vol_20_vol_60_ratio
+>   5. 价量形态：volume_ret_1d, volume_ma5/20, volume_ratio_5_20, obv, obv_5d_change, price_volume_divergence, close_position, upper_shadow, lower_shadow, body_size, high_low_range, high_low_range_ma20
+>   6. VIX 特征：vix_level, vix_change_1d/5d/20d, vix_ma20/60_ratio, vix_quantile_60d
+>   7. 相对强弱：rs_qv_spy, rs_qv_spy_ret_5d/20d/60d
+>   8. 市场广度：spy_ret_1d/5d/20d, spy_vol_20, spy_dist_ma200, spy_high_252d_ratio, spy_low_252d_ratio
+>   9. 利率特征：tnx_level, tnx_change_1d/5d/20d, tnx_ma20_ratio
+>   10. 美元特征：dxy_level, dxy_change_1d/5d/20d, dxy_ma20_ratio, dxy_trend_60d
+>   11. 交叉宏观：vix_spy_corr_20d, dxy_tnx_corr_20d
+> 从 data/raw/ 加载所有 7 个 CSV，以 QQQ 日期为基准对齐。
+> 实现 _remove_outliers() 方法处理极端值。
 > 输出 features.parquet 到 data/processed/。
 > 提供命令行入口可直接运行。"
 >
-> **验收**：运行后生成 features.parquet，包含 >= 25 个特征列，无 NaN/Inf。
+> **验收**：运行后生成 features.parquet，包含 >= 50 个特征列，无 NaN/Inf，每类特征都有对应列。
 
-#### Phase 4: 标签生成
-> **任务**：实现标签生成
+#### Phase 4: 标签生成与阈值敏感性分析
+> **任务**：实现标签生成 + 多阈值敏感性分析
 >
 > **指令**：
 > "在 src/label_generator.py 中实现 LabelGenerator 类。
 > 基于 QQQ 收盘价计算未来 5 日收益率 future_ret_5d = close.shift(-5)/close - 1。
-> 按阈值打标签：>2% 为 RiskOn(2)，<-2% 为 RiskOff(0)，中间 Neutral(1)。
-> 将标签列合并到特征表，保存回 features.parquet。
+> 默认按 ±2% 阈值打标签：>2% 为 RiskOn(2)，<-2% 为 RiskOff(0)，中间 Neutral(1)。
+> 支持可配置参数：horizon(预测天数), threshold(对称阈值), threshold_up/threshold_down(非对称), use_quantile(分位数法), quantile(分位数比例)。
+> 实现 threshold_sensitivity_analysis() 方法，遍历至少 5 种阈值方案：
+>   - ±1.0%, ±1.5%, ±2.0%, ±2.5%, ±3.0%
+>   - 非对称方案（+1.5%/-2.5%）
+>   - 分位数方案（top/bottom 30%）
+> 输出各方案的标签分布对比表，保存到 reports/threshold_analysis.csv。
+> 将默认标签列合并到特征表，保存回 features.parquet。
 > 提供命令行入口。"
 >
-> **验收**：features.parquet 新增 label 列，三类标签分布合理，无未来函数。
+> **验收**：features.parquet 新增 label 列；阈值分析覆盖 >= 5 种方案；三类标签分布合理；无未来函数。
 
 #### Phase 5: 模型训练
 > **任务**：实现模型训练
@@ -837,29 +1023,39 @@ jupyter>=1.0.0
 >
 > **验收**：模型能训练并保存，预测概率之和≈1，训练集准确率>33%。
 
-#### Phase 6: 组合引擎
-> **任务**：实现组合决策
+#### Phase 6: 组合引擎与交易成本
+> **任务**：实现组合决策 + 交易成本/滑点/融资成本模拟
 >
 > **指令**：
 > "在 src/portfolio_engine.py 中实现 PortfolioEngine 类。
 > 决策规则：P(RiskOn)>0.6 → TQQQ，P(RiskOff)>0.6 → SQQQ，否则 Cash。
 > 信号收盘生成，次日开盘执行（持仓后移一天）。
-> 输入预测概率，输出每日持仓序列和每日收益率序列（需加载 TQQQ/SQQQ 价格计算）。
-> 可配置阈值参数。"
+> 实现交易成本模拟：
+>   - 佣金 commission_bps = 5 bps（每次买卖）
+>   - 滑点 slippage_bps = 10 bps（每次买卖）
+>   - 融资成本 financing_cost_daily = 0.0002/日（仅持有 TQQQ/SQQQ 时扣除）
+> 换手时扣除佣金+滑点，持有期间按日扣除融资成本。
+> 实现 calculate_nav() 方法计算扣除成本后的净值曲线。
+> 支持 include_costs 参数，可关闭成本用于对比。
+> 输入预测概率，输出每日持仓序列、每日收益率序列、净值序列。
+> 可配置阈值和成本参数。"
 >
-> **验收**：输出三态持仓，有执行滞后，收益率计算正确。
+> **验收**：输出三态持仓；有执行滞后；有成本vs无成本净值有合理差异；融资成本仅在杠杆仓位时扣除；换手次数×单次成本≈总成本（量级校验）。
 
 #### Phase 7: Walk-Forward
-> **任务**：实现滚动验证
+> **任务**：实现多方案滚动验证（年频/季频 + 扩张/滚动窗口）
 >
 > **指令**：
 > "在 src/walkforward.py 中实现 WalkForwardValidator 类。
-> 按年份划分：训练集从 2011 到测试年前一年，测试集为该年。
-> 遍历每个测试年份，逐年训练预测。
-> 拼接所有样本外结果，输出完整的样本外预测序列。
-> 严禁使用随机划分，严禁测试集数据泄露到训练集。"
+> 支持三种滚动频率：yearly（年频）、quarterly（季频）、monthly（月频）。
+> 支持两种窗口模式：expanding（扩张窗口）、rolling（固定窗口，window_years 可配置）。
+> 实现 generate_splits() 方法：按配置生成所有训练/测试切分。
+> 实现 run() 方法：遍历每个 split，训练 LightGBM 模型，预测测试集，通过组合引擎生成收益，收集样本外结果。
+> 实现 compare_schemes() 方法：对比多种 Walk-Forward 方案（年频扩张、季频扩张、季频滚动5年）的绩效。
+> 严禁使用随机划分，严禁测试集数据泄露到训练集。
+> 输出样本外预测和收益序列，保存为 Parquet。"
 >
-> **验收**：样本外结果覆盖所有测试年，训练/测试无时间重叠，可复现。
+> **验收**：样本外结果覆盖所有测试周期；训练/测试无时间重叠；支持 >=3 种方案对比；不同方案结果有合理差异；可复现。
 
 #### Phase 8: 绩效评估
 > **任务**：实现绩效计算
