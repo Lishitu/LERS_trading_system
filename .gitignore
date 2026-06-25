@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data files
+data/raw/
+data/qlib_bin/
+*.csv
+*.parquet
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+docker_volumes/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets
+config/secrets.yaml
+config/secrets.json
+.env

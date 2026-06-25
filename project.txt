@@ -1,0 +1,58 @@
+美股杠杆 ETF 择时指增与日内 T0 增强系统（Project: Helios）项目计划书与架构设计本项目旨在构建一个核心-卫星（Core-Satellite）架构的量化交易系统。主策略（Core）通过 Quant Agent 进行宏观与价量择时，动态调仓美股高流动性杠杆 ETF（如 TQQQ/SOXL）以捕获指数增强 Beta；卫星策略（Satellite）利用底仓与日内剩余现金，在低摩擦时段进行日内 T0 统计套利与夜盘网格挂单，实现持仓成本的钝化。1. 系统总体架构 (System Architecture)整个项目在本地通过 Docker 环境隔离，采用 Python 异步驱动，核心分为四大分层：+-------------------------------------------------------------+
+|                     1. 数据层 (Data Engine)                  |
+|   [yfinance (日线/分钟)]  |  [AkShare (宏观)]  |  [Moomoo L2 录制] |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                2. 因子与决策层 (Quant Agent Engine)          |
+|   [Data-Agent]  -->  [Risk-Agent (损耗/波动)] --> [Exec-Agent] |
+|   (Alpha158因子)                               (尾盘15:55调仓) |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                    3. 回测与验证层 (Qlib Engine)             |
+|   [Qlib Dataset]  -->  [Portfolio Provider] --> [滑点/成本分析]  |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                  4. 实盘与交易层 (Execution)                 |
+|   [Moomoo Open API (底仓T0)]   |  [夜盘网格现金管理 (被动单)]     |
++-------------------------------------------------------------+
+2. 核心模块开发计划 (Milestones)Phase 1: 数据基础设施搭建 (Data Infrastructure)目标：建立稳定、自动化的本地高频与日级数据库。Trae 任务指令：“编写一个数据下载脚本 data_fetcher.py，利用 yfinance 下载指定杠杆 ETF（TQQQ, SOXL, UPRO, SQQQ）过去 5 年的日线及近 1 个月的 1 分钟线数据，并统一转化为 Qlib 兼容的 CSV 格式。”“利用 akshare 编写宏观流动性指标（如美债收益率、VIX 指数、恐惧贪婪指数）的爬取脚本 macro_fetcher.py。”Phase 2: Qlib 回测框架集成与因子挖掘目标：在 Qlib 中复现并魔改 Alpha158 因子，使其适应杠杆 ETF 的择时场景。核心逻辑：基础价量因子：基于 Qlib 的表达驱动器（Expression Provider）构建动量、反转、量价背离因子。波动率损耗拦截器：加入自适应波动率过滤。当 $Volatility_{30d}$ 超过阈值且无明显趋势时，因子输出强制归零（指导主策略切换为 1x 正股或空仓避险）。Trae 任务指令：“初始化 Qlib 配置文件 config.yaml，配置初始化数据集，编写自定义模型类 LeveragedETFModel，使其能够载入修改后的 Alpha158 因子进行日级择时训练。”Phase 3: 多 Agent 决策协同（Quant Agent 编写）目标：利用 LangGraph 或轻量级状态机，构建尾盘逻辑处理 Agents。Agent 职责划分：Data-Agent：每日美东时间 15:45 触发，拉取当日盘中表现及 Qlib 因子预测值。Risk-Agent：计算当前多头持仓的复利损耗暴露（Volatility Decay Exposure），判断是否触发强制平仓或对冲。Execution-Agent：生成最终交易指令（如：“清空 TQQQ，买入 SQQQ” 或 “降配至 QQQ”），并在 15:55（尾盘流动性最深、定价最有效率的时段）执行。Phase 4: 日内 T0 与夜盘卫星策略开发目标：在不改变日终（End of Day）持仓股数的前提下，利用 Moomoo API 进行日内与隔夜套利。子策略设计：底仓 T0 (日内)：基于分钟线或 L2 订单薄流不平衡度（Order Imbalance），在日内均值回归节点做 Buy-To-Cover 或 Sell-To-Open，收盘前必须平仓，保持原始底仓股数不变。现金网格 (夜盘)：利用夜盘流动性枯竭导致的异常长下影线，在远离现价 1.5% - 3% 处挂被动买单（Limit Buy），一旦由于乌龙指或流动性瞬断触发，反弹 0.5% 立刻分批吐出。3. 目录结构设计 (Project Directory Layout)建议在 Trae 中初始化如下结构，让 AI 遵循此规范编写代码：PlaintextHelios_Quant/
+│
+├── config/
+│   ├── qlib_config.yaml       # Qlib 回测参数配置
+│   └── agent_config.json      # Agent 提示词与风控阈值
+│
+├── data/
+│   ├── raw/                   # yfinance/akshare 原始下载数据
+│   └── qlib_bin/              # Qlib 转换后的二进制格式数据
+│
+├── src/
+│   ├── data_engine/           # 数据下载与清洗模块
+│   │   ├── fetcher.py
+│   │   └── processor.py
+│   │
+│   ├── factors/               # 因子计算逻辑（魔改Alpha158）
+│   │   └── leveraged_alpha.py
+│   │
+│   ├── agents/                # Quant Agent 核心
+│   │   ├── data_agent.py
+│   │   ├── risk_agent.py
+│   │   └── exec_agent.py
+│   │
+│   └── strategies/            # T0 与夜盘策略模块
+│       ├── intra_t0.py
+│       └── overnight_grid.py
+│
+├── backtest/                  # Qlib 回测运行与分析脚本
+│   ├── run_backtest.py
+│   └── analyzer.py
+│
+├── docker-compose.yml         # 本地 Qlib 与 Agent 环境隔离
+├── requirements.txt
+└── README.md
+4. 关键风险与对策 (Risk Management)风险项风险描述对应技术/策略解决方案震荡损耗 (Decay)杠杆 ETF 在震荡市中由于每日复利计算导致净值天然流失。Risk-Agent 熔断机制：当 ATR 或 VIX 处于高位区间震荡时，Agent 自动将标的降维至 QQQ（1x）或全仓持币。洗售规则 (Wash Sale)频繁 T0 触发美股 Wash Sale，导致亏损无法抵税，增加报税成本。系统记账隔离：实盘时 T0 模块尽量使用独立子账户操作，或者在策略回测端引入税务摩擦惩罚因子。回测幸存者偏差免费的 yfinance 分钟线数据没有买卖点差记录，T0 回测可能过度乐观。Qlib 严格滑点模拟：在 Qlib 的 Slippage 组件中，为 T0 策略强制加入固定 1-2 个基点的滑点，且夜盘网格仅采用被动挂单撮合逻辑（Limit Order）。5. Trae 推进指南 (How to Start with Trae)
