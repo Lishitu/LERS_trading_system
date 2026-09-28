@@ -261,6 +261,13 @@ python src/run_coresatellite_backtest.py
 
 ---
 
+## 🙏 致谢与参考 (Acknowledgements & References)
+
+- **[TradingAgents](https://github.com/TaurasZ/TradingAgents)**: 本系统的 AI 投决会（AI Agent Copilot）参考借鉴了 TradingAgents 的多智能体对抗辩论与多角色分工架构思想（宏观分析师、量化技术派、多空博弈席、CIO风控）。我们在此基础上针对美股实盘量化场景进行了深度改造，原生接入了 Moomoo ETF 行情事实、量化订单一对一风控审查、严格整数股执行规则及 DeepSeek-V3 引擎。特此向原作者团队表示由衷的感谢与致敬！
+
+---
+
 ## ⚠️ 免责声明
 
 本系统仅用于量化交易学术研究与策略验证，不构成任何投资建议。杠杆 ETF（如 TQQQ, QLD, SOXL 等）自带波动率损耗与衍生品重置风险，历史业绩不代表未来表现。实盘交易请自行承担一切市场风险与盈亏结果。
+
