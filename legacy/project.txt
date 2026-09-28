@@ -1,0 +1,486 @@
+# Leveraged ETF Regime Switching System (LERS)
+
+## Project Objective
+
+Build a quantitative trading system that dynamically allocates capital among leveraged ETFs based on market regime prediction.
+
+The goal is not stock selection.
+
+The goal is to identify:
+
+* Risk-On
+* Risk-Off
+* Neutral
+
+market states and switch between:
+
+* TQQQ
+* SQQQ
+* Cash
+
+to outperform Buy & Hold TQQQ on a risk-adjusted basis.
+
+---
+
+# Phase 1: Minimum Viable Product (MVP)
+
+## Trading Universe
+
+Initial universe:
+
+* TQQQ
+* SQQQ
+* Cash
+
+No other assets in Phase 1.
+
+---
+
+## Prediction Horizon
+
+Target:
+
+Predict QQQ future return over:
+
+* 5 trading days
+
+Optional:
+
+* 1 day
+* 10 days
+
+for comparison.
+
+---
+
+## Benchmark Strategies
+
+### Benchmark A
+
+Buy & Hold TQQQ
+
+### Benchmark B
+
+200-day Moving Average Timing
+
+Rule:
+
+If QQQ > MA200:
+Hold TQQQ
+
+Else:
+Hold Cash
+
+### Benchmark C
+
+20/60 Moving Average Cross
+
+Rule:
+
+If MA20 > MA60:
+Hold TQQQ
+
+Else:
+Hold Cash
+
+---
+
+# Phase 2: Data Layer
+
+## Data Source
+
+Use yfinance.
+
+Download:
+
+* QQQ
+* TQQQ
+* SQQQ
+* SPY
+* ^VIX
+* ^TNX
+* DX-Y.NYB
+
+Date Range:
+
+2011-01-01 to present
+
+---
+
+## Data Storage
+
+Directory structure:
+
+data/
+
+```
+raw/
+
+    qqq.csv
+    tqqq.csv
+    sqqq.csv
+    spy.csv
+    vix.csv
+    tnx.csv
+    dxy.csv
+
+processed/
+
+    features.parquet
+```
+
+---
+
+# Phase 3: Feature Engineering
+
+## Momentum Features
+
+Calculate:
+
+* ret_1d
+* ret_5d
+* ret_10d
+* ret_20d
+* ret_60d
+
+---
+
+## Moving Average Features
+
+Calculate:
+
+* ma5
+* ma10
+* ma20
+* ma60
+* ma120
+* ma200
+
+---
+
+## Distance Features
+
+Calculate:
+
+close / ma20 - 1
+
+close / ma60 - 1
+
+close / ma200 - 1
+
+---
+
+## Volatility Features
+
+Calculate:
+
+* vol_5
+* vol_20
+* vol_60
+
+using rolling standard deviation.
+
+---
+
+## VIX Features
+
+Calculate:
+
+* vix_level
+* vix_change_5d
+* vix_ma20_ratio
+
+---
+
+## Relative Strength Features
+
+Calculate:
+
+QQQ / SPY
+
+and related momentum metrics.
+
+---
+
+## Interest Rate Features
+
+Calculate:
+
+* TNX
+* TNX_change_5d
+
+---
+
+## Dollar Features
+
+Calculate:
+
+* DXY
+* DXY_change_5d
+
+---
+
+# Phase 4: Label Generation
+
+Create market state labels using future 5-day returns.
+
+future_ret_5d = close.shift(-5)/close - 1
+
+Labeling rule:
+
+If future_ret_5d > 2%:
+RiskOn
+
+If future_ret_5d < -2%:
+RiskOff
+
+Else:
+Neutral
+
+Encoding:
+
+RiskOff = 0
+
+Neutral = 1
+
+RiskOn = 2
+
+---
+
+# Phase 5: Model Training
+
+## Baseline Models
+
+Implement:
+
+1. Logistic Regression
+
+2. Random Forest
+
+3. LightGBM
+
+Primary model:
+
+LightGBM
+
+---
+
+## Output
+
+Predict:
+
+* P(RiskOn)
+* P(Neutral)
+* P(RiskOff)
+
+for each trading day.
+
+---
+
+# Phase 6: Portfolio Engine
+
+## Trading Actions
+
+Possible positions:
+
+1. TQQQ
+
+2. SQQQ
+
+3. Cash
+
+Only one position at a time.
+
+---
+
+## Decision Rule
+
+If P(RiskOn) > 0.60:
+
+```
+Hold TQQQ
+```
+
+Else if P(RiskOff) > 0.60:
+
+```
+Hold SQQQ
+```
+
+Else:
+
+```
+Hold Cash
+```
+
+---
+
+## Execution
+
+Signals generated at close.
+
+Trades executed at next market open.
+
+Avoid look-ahead bias.
+
+---
+
+# Phase 7: Walk Forward Testing
+
+Do NOT use random train/test splits.
+
+Implement rolling walk-forward validation.
+
+Example:
+
+Train:
+2011-2018
+
+Test:
+2019
+
+Then:
+
+Train:
+2011-2019
+
+Test:
+2020
+
+Continue until present.
+
+Combine all out-of-sample results.
+
+---
+
+# Phase 8: Performance Evaluation
+
+## Portfolio Metrics
+
+Calculate:
+
+* CAGR
+* Annual Return
+* Volatility
+* Sharpe Ratio
+* Sortino Ratio
+* Calmar Ratio
+* Maximum Drawdown
+
+---
+
+## Trading Metrics
+
+Calculate:
+
+* Win Rate
+* Turnover
+* Average Holding Period
+* Trade Count
+
+---
+
+## Classification Metrics
+
+Calculate:
+
+* Accuracy
+* Precision
+* Recall
+* F1 Score
+* Confusion Matrix
+
+---
+
+# Phase 9: Visualization
+
+Generate:
+
+1. Equity Curve
+
+2. Drawdown Curve
+
+3. Rolling Sharpe
+
+4. Position Timeline
+
+5. Feature Importance
+
+6. Confusion Matrix
+
+Save all figures into:
+
+reports/figures/
+
+---
+
+# Project Structure
+
+leveraged_etf_agent/
+
+```
+data/
+
+reports/
+
+notebooks/
+
+tests/
+
+src/
+
+    data_loader.py
+
+    feature_engineering.py
+
+    label_generator.py
+
+    train_model.py
+
+    portfolio_engine.py
+
+    walkforward.py
+
+    backtest.py
+
+    evaluate.py
+
+    visualization.py
+```
+
+---
+
+# Success Criteria
+
+The strategy should satisfy:
+
+1. Sharpe Ratio > Buy & Hold TQQQ
+
+2. Maximum Drawdown significantly lower than Buy & Hold TQQQ
+
+3. Positive out-of-sample CAGR
+
+4. Consistent walk-forward performance
+
+5. Robust results across multiple market regimes
+
+---
+
+# Future Expansion (Phase 2)
+
+After MVP is validated, expand asset universe:
+
+* SOXL
+* SOXS
+* UPRO
+* SPXU
+
+Then investigate:
+
+* Multi-asset allocation
+* Continuous position sizing
+* Reinforcement Learning
+* LLM-generated regime features
+* Macro Agent integration
+
+These features are explicitly out of scope for MVP and should only be implemented after Phase 1 demonstrates statistically significant alpha.

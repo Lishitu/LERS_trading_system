@@ -1,0 +1,2 @@
+# 请在此填入您的 DeepSeek API Key (例如: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+# 获取地址: https://platform.deepseek.com/

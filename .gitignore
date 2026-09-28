@@ -27,15 +27,18 @@ ENV/
 .venv/
 
 # IDE
+# IDE & Editors
 .vscode/
 .idea/
+.trae/
 *.swp
 *.swo
 *~
 
-# Data files
-data/raw/
-data/qlib_bin/
+# Data files & Runtime Stores
+data/
+!data/.gitkeep
+!data/results/*.png
 *.csv
 *.parquet
 *.h5
@@ -46,6 +49,14 @@ data/qlib_bin/
 # Logs
 logs/
 *.log
+
+# Releases & Archives
+*.zip
+*.tar.gz
+dist/
+
+# Scratch & Temporary
+scratch/
 
 # Docker volumes
 docker_volumes/
@@ -58,7 +69,10 @@ docker_volumes/
 .DS_Store
 Thumbs.db
 
-# Config with secrets
+# Config with secrets (STRICTLY FORBIDDEN IN GIT)
+config/config.json
+config/apikey.txt
 config/secrets.yaml
 config/secrets.json
 .env
+

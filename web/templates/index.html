@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LERS - 杠杆ETF回测监控平台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+  <div class="app-container live-mode" id="appContainer">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="app-version">v1.0.1</span>
+        <h1 class="app-title">LERS</h1>
+        <p class="app-subtitle">杠杆ETF状态切换系统</p>
+      </div>
+      
+      <div class="param-section" data-section="label">
+        <div class="param-section-header">
+          <h3 class="section-title"><span class="section-title-icon">📊</span>标签参数</h3>
+          <span class="section-collapse-btn">▼</span>
+        </div>
+        <div class="param-section-content">
+          <div class="form-group">
+            <label>预测周期（天）</label>
+            <input type="number" id="horizon" value="5" min="1" max="20">
+          </div>
+          <div class="form-group">
+            <label>阈值模式</label>
+            <select id="thresholdMode">
+              <option value="symmetric">对称阈值</option>
+              <option value="asymmetric">非对称阈值</option>
+              <option value="quantile">分位数法</option>
+            </select>
+          </div>
+          <div class="form-group" id="thresholdGroup">
+            <label>阈值（%）</label>
+            <input type="number" id="threshold" value="2" step="0.5" min="0.1" max="10">
+          </div>
+          <div class="form-group hidden" id="thresholdUpGroup">
+            <label>上涨阈值（%）</label>
+            <input type="number" id="thresholdUp" value="2" step="0.5" min="0.1" max="10">
+          </div>
+          <div class="form-group hidden" id="thresholdDownGroup">
+            <label>下跌阈值（%）</label>
+            <input type="number" id="thresholdDown" value="2" step="0.5" min="0.1" max="10">
+          </div>
+          <div class="form-group hidden" id="quantileGroup">
+            <label>分位数比例</label>
+            <input type="number" id="quantile" value="0.3" step="0.05" min="0.1" max="0.5">
+          </div>
+        </div>
+      </div>
+
+      <div class="param-section" data-section="walkforward">
+        <div class="param-section-header">
+          <h3 class="section-title"><span class="section-title-icon">🔄</span>Walk-Forward</h3>
+          <span class="section-collapse-btn">▼</span>
+        </div>
+        <div class="param-section-content">
+          <div class="form-group">
+            <label>滚动频率</label>
+            <select id="frequency">
+              <option value="yearly">年频</option>
+              <option value="quarterly" selected>季频</option>
+              <option value="monthly">月频</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>窗口模式</label>
+            <select id="windowMode">
+              <option value="expanding" selected>扩张窗口</option>
+              <option value="rolling">滚动窗口</option>
+            </select>
+          </div>
+          <div class="form-group" id="windowYearsGroup">
+            <label>窗口年数（滚动模式）</label>
+            <input type="number" id="windowYears" value="5" min="2" max="10" disabled>
+          </div>
+          <div class="form-group">
+            <label>最小训练年数</label>
+            <input type="number" id="minTrainYears" value="5" min="2" max="10">
+          </div>
+        </div>
+      </div>
+
+      <div class="param-section" data-section="portfolio">
+        <div class="param-section-header">
+          <h3 class="section-title"><span class="section-title-icon">💰</span>组合参数</h3>
+          <span class="section-collapse-btn">▼</span>
+        </div>
+        <div class="param-section-content">
+          <div class="form-group">
+            <label>Risk-On 阈值</label>
+            <input type="number" id="riskOnThreshold" value="0.6" step="0.05" min="0.3" max="0.9">
+          </div>
+          <div class="form-group">
+            <label>Risk-Off 阈值</label>
+            <input type="number" id="riskOffThreshold" value="0.6" step="0.05" min="0.3" max="0.9">
+          </div>
+          <div class="form-group">
+            <label>每笔股数</label>
+            <input type="number" id="sharesPerTrade" value="100" step="10" min="10" max="1000">
+          </div>
+          <div class="form-group">
+            <label>成本模式</label>
+            <select id="costMode">
+              <option value="real" selected>真实成本</option>
+              <option value="simple">简化模型</option>
+            </select>
+          </div>
+          <div class="form-group hidden" id="simpleCostGroup">
+            <label>简化成本（bps）</label>
+            <input type="number" id="simpleCostBps" value="15" step="1" min="0" max="100">
+          </div>
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="includeCosts" checked>
+            <label for="includeCosts">计入交易成本</label>
+          </div>
+          <div class="cost-info">
+            <small class="cost-info-text">
+              真实成本包含：佣金($0.0049/股)、平台费($0.005/股)、交收费($0.003/股)、证监会规费(卖出)、交易活动费(卖出)
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <div class="param-section" data-section="model">
+        <div class="param-section-header">
+          <h3 class="section-title"><span class="section-title-icon">🤖</span>模型参数</h3>
+          <span class="section-collapse-btn">▼</span>
+        </div>
+        <div class="param-section-content">
+          <div class="form-group">
+            <label>模型类型</label>
+            <select id="modelType">
+              <option value="lightgbm" selected>LightGBM</option>
+              <option value="random_forest">Random Forest</option>
+              <option value="logistic">Logistic Regression</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>随机种子</label>
+            <input type="number" id="randomState" value="42" min="0" max="9999">
+          </div>
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <button id="runBtn" class="btn btn-primary">
+          <span class="btn-spinner"></span>
+          <span class="btn-text">▶ 运行回测</span>
+        </button>
+        <button id="resetBtn" class="btn btn-secondary">↺ 恢复默认</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <!-- 实盘监控状态指示 (默认在实盘标签下显示) -->
+          <div class="status-indicator" id="liveStatusIndicator">
+            <span class="status-dot status-running"></span>
+            <span class="status-text" id="liveStatusText" style="color: #10b981; font-weight: 600;">监控服务运行中</span>
+            <span class="text-muted" style="font-size: 11px; margin-left: 6px;" id="liveLastSyncTime">实时已同步</span>
+          </div>
+
+          <!-- 回测引擎状态指示 (仅在切换至历史回测Tab时显示) -->
+          <div class="status-indicator hidden" id="backtestStatusIndicator">
+            <span class="status-dot status-idle" id="btStatusDot"></span>
+            <span class="status-text" id="btStatusText">回测引擎待命</span>
+          </div>
+          <div class="progress-bar-container hidden" id="btProgressContainer">
+            <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+          </div>
+          <span class="progress-text hidden" id="progressText">0%</span>
+        </div>
+        <div class="top-nav-switcher">
+          <button class="nav-tab-btn active" id="navLiveTradeBtn">⚡ 美股实盘与风控监控</button>
+          <button class="nav-tab-btn" id="navBacktestBtn">📊 历史回测分析</button>
+        </div>
+        <div class="top-bar-right">
+          <button class="btn btn-danger btn-sm" id="topShutdownBtn" title="安全退出策略后台与Web服务" style="margin-right: 8px;">🛑 关闭服务</button>
+          <button class="help-btn" id="helpBtn" title="帮助">?</button>
+        </div>
+      </header>
+
+      <!-- 1. 历史回测主视图 -->
+      <div id="backtestView" class="hidden">
+        <section class="metrics-section" id="metricsSection">
+          <div class="section-header">
+            <h2 class="section-heading">绩效指标</h2>
+            <div class="metrics-tabs">
+              <button class="metric-tab-btn active" data-metric-tab="strategy">策略</button>
+              <button class="metric-tab-btn" data-metric-tab="benchmark">基准对比</button>
+            </div>
+          </div>
+          <div class="metrics-tab-content active" id="strategyMetrics">
+            <div class="metrics-grid">
+            </div>
+          </div>
+          <div class="metrics-tab-content" id="benchmarkMetrics">
+            <div class="benchmark-selector">
+              <label for="benchmarkSelect">选择基准:</label>
+              <select id="benchmarkSelect">
+                <option value="">-- 请选择 --</option>
+              </select>
+            </div>
+            <div class="metrics-grid" id="benchmarkMetricsGrid">
+            </div>
+          </div>
+        </section>
+
+        <section class="charts-section">
+          <div class="chart-tabs">
+            <button class="tab-btn active" data-tab="core">核心图表</button>
+            <button class="tab-btn" data-tab="analysis">扩展分析</button>
+          </div>
+
+          <div class="tab-content active" id="coreCharts">
+            <div class="chart-grid">
+              <div class="chart-container">
+                <h3 class="chart-title">净值曲线</h3>
+                <div id="equityChart" class="chart"></div>
+              </div>
+              <div class="chart-container">
+                <h3 class="chart-title">回撤曲线</h3>
+                <div id="drawdownChart" class="chart"></div>
+              </div>
+              <div class="chart-container full-width">
+                <h3 class="chart-title">持仓时间线</h3>
+                <div id="positionChart" class="chart"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-content" id="analysisCharts">
+            <div class="chart-grid">
+              <div class="chart-container">
+                <h3 class="chart-title">特征重要性 (Top 20)</h3>
+                <div id="featureImportanceChart" class="chart chart-horizontal"></div>
+              </div>
+              <div class="chart-container">
+                <h3 class="chart-title">混淆矩阵</h3>
+                <div id="confusionMatrixChart" class="chart chart-heatmap"></div>
+              </div>
+              <div class="chart-container full-width">
+                <h3 class="chart-title">滚动夏普比率 (60天)</h3>
+                <div id="rollingSharpeChart" class="chart"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="log-section">
+          <h3 class="section-heading">运行日志</h3>
+          <div class="log-container" id="logContainer">
+            <div class="log-header">
+              <span class="log-dot red"></span>
+              <span class="log-dot yellow"></span>
+              <span class="log-dot green"></span>
+              <span class="log-title">backtest.log</span>
+            </div>
+            <pre id="logOutput">等待回测启动...</pre>
+          </div>
+        </section>
+      </div>
+
+      <!-- 2. Moomoo 实盘与实时风控专属视图 -->
+      <div id="liveTradeView">
+        <!-- 交易环境切换工具条 -->
+        <div class="env-switcher-bar">
+          <div class="env-switcher-pills">
+            <button class="env-pill-btn active" id="envRealBtn" data-env="real">
+              <span class="env-pill-icon">🔒</span> 美股实盘账户 (Real Account · 只读交互)
+            </button>
+            <button class="env-pill-btn" id="envSimulateBtn" data-env="simulate">
+              <span class="env-pill-icon">⚡</span> 模拟盘账户 (Paper Trading)
+            </button>
+          </div>
+          <div class="env-mode-hint" id="envModeHint">
+            <span class="badge badge-amber" id="envModeBadge">🔒 美股实盘环境: 只读监控模式 (安全锁生效)</span>
+          </div>
+        </div>
+
+        <!-- 实盘策略固化版本选择工具栏 -->
+        <div class="strategy-version-bar">
+          <div class="version-bar-left">
+            <span class="version-label-icon">🎯</span>
+            <span class="version-label-title">实盘策略固化版本:</span>
+            <select id="strategyVersionSelect" class="version-select-box">
+              <option value="v1.0-production" selected>v1.0 生产固化版 (推荐: 核心50%+卫星50%, 目标波25%, 杠杆0.6-1.8x, 缓冲6%)</option>
+              <option value="v1.0-aggressive">v1.0 进取增强版 (高弹性: 核心40%+卫星60%, 目标波28%, 杠杆0.7-2.0x, 缓冲5%)</option>
+              <option value="v1.0-conservative">v1.0 稳健防守版 (低回撤: 核心60%+卫星40%, 目标波20%, 杠杆0.5-1.5x, 缓冲7%)</option>
+            </select>
+            <span class="badge badge-purple" id="versionTagBadge">推荐·全周期验证</span>
+          </div>
+          <div class="version-bar-right" id="versionDescText">
+            经10年全周期与宏观压力测试验证的最优稳健配置 (夏普 1.16 | 最大回撤 -27.1% | CAGR 27.4%)
+          </div>
+        </div>
+
+        <!-- 策略规模预算与持仓权重分配工具栏 -->
+        <div class="capital-setting-bar">
+          <div class="capital-bar-left">
+            <div class="capital-control-group">
+              <span class="version-label-icon">💰</span>
+              <span class="capital-label-title">策略运行规模:</span>
+              <select id="capitalModeSelect" class="capital-select-box">
+                <option value="FULL_NAV" selected>全账户资产 (100% NAV)</option>
+                <option value="CUSTOM_AMOUNT">指定固定金额 ($ USD)</option>
+                <option value="PERCENT">指定资产比例 (%)</option>
+              </select>
+              <div class="capital-input-wrapper hidden" id="capitalAmountWrapper">
+                <span class="capital-input-prefix">$</span>
+                <input type="number" id="capitalCustomAmount" value="30000" min="1000" step="1000" class="capital-number-input" placeholder="金额">
+              </div>
+              <div class="capital-input-wrapper hidden" id="capitalPercentWrapper">
+                <input type="number" id="capitalPercent" value="50" min="5" max="100" step="5" class="capital-number-input" placeholder="比例">
+                <span class="capital-input-suffix">%</span>
+              </div>
+              <label class="capital-checkbox-label" title="开启后，策略不会对非策略标的池的股票自动生成卖出平仓订单">
+                <input type="checkbox" id="ignoreOutsideHoldings" checked> 隔离非策略股票
+              </label>
+            </div>
+
+            <div class="capital-control-group" style="margin-left: 8px;">
+              <span class="version-label-icon">⚖️</span>
+              <span class="capital-label-title">卫星分配模式:</span>
+              <select id="satelliteWeightModeSelect" class="satellite-select-box">
+                <option value="EQUAL" selected>⚖️ 等权分配 (50% / 50% · 历史夏普 1.06 推荐)</option>
+                <option value="TIERED_60_40">📈 温和阶梯 (60% / 40% · 突出龙头)</option>
+                <option value="TIERED_65_35">🚀 鲜明阶梯 (65% / 35% · 强进攻倾向)</option>
+              </select>
+            </div>
+
+            <button id="applyCapitalBtn" class="btn-apply-capital">💾 应用配置</button>
+          </div>
+
+          <div class="capital-bar-right">
+            <div class="capital-badge-info" id="capitalSummaryBadge">
+              <span>有效预算: <strong id="badgeStratNav">$0.00</strong> (<span id="badgeStratRatio">100%</span>)</span>
+              <span>隔离保护: <strong id="badgeProtectedNav" style="color: #64748b;">$0.00</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 实盘安全防御横幅提示 -->
+        <div class="live-security-banner" id="realSecurityBanner">
+          <span class="security-banner-icon">🔒</span>
+          <div class="security-banner-content">
+            <strong>实盘安全防御已激活</strong>：当前已直连您的真实美股账户（资产与持仓由本地 OpenD 实时读取）。系统<strong>不支持且已物理锁定程序直接报单</strong>，仅提供精准调仓建议清单。请根据待执行清单在富途牛牛/Moomoo 客户端<strong>手动下单</strong>。
+          </div>
+        </div>
+
+        <!-- 状态横幅卡片 -->
+        <div class="live-status-banner">
+          <div class="live-status-item">
+            <span class="pulse-dot online" id="liveConnDot"></span>
+            <span class="live-status-label">OpenD 通道:</span>
+            <span class="live-status-val" id="liveConnText">检测中...</span>
+          </div>
+          <div class="live-status-item">
+            <span class="pulse-dot online" id="liveSubDot"></span>
+            <span class="live-status-label">行情订阅:</span>
+            <span class="live-status-val" id="liveSubText">21只标的订阅就绪</span>
+          </div>
+          <div class="live-status-item">
+            <span class="live-status-label" id="liveNoticeLabel">飞书交互:</span>
+            <span class="live-status-badge badge-blue" id="liveNoticeBadge">长连接双向监听中</span>
+          </div>
+          <div class="live-status-actions">
+            <button class="btn btn-secondary btn-sm" id="refreshLiveBtn">🔄 刷新数据</button>
+            <button class="btn btn-secondary btn-sm" id="copyOrdersBtn">📋 复制调仓清单</button>
+            <button class="btn btn-secondary btn-sm" id="toggleStrategyBtn" title="暂停/恢复策略信号计算与飞书推送">⏸️ 暂停策略</button>
+            <button class="btn btn-danger btn-sm" id="shutdownSystemBtn" title="安全退出策略后台与Web服务">🛑 关闭后台服务</button>
+            <button class="btn btn-primary btn-sm btn-locked" id="oneClickExecuteBtn" title="实盘安全锁生效中">🔒 实盘安全锁 (仅手动下单)</button>
+          </div>
+        </div>
+
+        <!-- [零] TradingAgents AI 决策副驾驶 (DeepSeek 投决会 · 宏观/地缘/多空辩论) -->
+        <div class="ai-copilot-panel">
+          <div class="ai-panel-header">
+            <div class="ai-header-left">
+              <span class="ai-header-icon">🤖</span>
+              <div>
+                <h3 class="ai-header-title">TradingAgents 智能投研决策副驾驶 (DeepSeek 投决会)</h3>
+                <p class="ai-header-subtitle">基于 Moomoo ETF 行情、宏观地缘事实与前期研判连续性进行多代理博弈，并对量化订单进行二次风控裁决</p>
+              </div>
+            </div>
+            <div class="ai-header-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <div class="history-select-group">
+                <label for="aiHistorySelect" style="font-size: 12px; color: var(--color-gray-600); font-weight: 600;">📅 研判历史回顾:</label>
+                <select id="aiHistorySelect" class="history-advice-select">
+                  <option value="latest" selected>⚡ 当前最新实时研判</option>
+                </select>
+              </div>
+              <span class="badge badge-purple" id="aiGeneratedTime">最新研判: 正在读取...</span>
+              <button class="btn btn-primary btn-sm" id="reanalyzeAiBtn">🧠 重新运行投决会研判</button>
+            </div>
+          </div>
+
+          <div class="ai-content-grid">
+            <!-- 核心决策卡 -->
+            <div class="ai-verdict-card">
+              <div class="ai-card-label">投决会核心行动指导</div>
+              <div class="ai-verdict-badge-row">
+                <span class="ai-verdict-badge badge-warning" id="aiVerdictBadge">分析计算中...</span>
+                <span class="ai-build-tag">建议建仓规模: <strong id="aiBuildPct" class="text-green">--%</strong></span>
+                <span class="ai-confidence-tag">模型信心度: <strong id="aiConfidence" class="text-purple">--%</strong></span>
+              </div>
+              <div class="ai-stability-box" id="aiStabilityBox">
+                <span class="ai-stability-tag">🔗 研判连贯性说明:</span>
+                <span id="aiStabilityComment" class="ai-stability-val">正在评估前期历史研判继承性...</span>
+              </div>
+              <div class="ai-summary-text" id="aiMacroSummary">
+                正在分析地缘战争与利率宏观对当前标的池的影响...
+              </div>
+              <div class="ai-cio-box">
+                <div class="ai-cio-label">🎖️ 首席投资官 (CIO) 执行指南与风险控制:</div>
+                <div class="ai-cio-text" id="aiCioConclusion">--</div>
+              </div>
+            </div>
+
+            <!-- 多空辩论对垒席 (TradingAgents 核心特色) -->
+            <div class="ai-debate-container">
+              <div class="ai-debate-col bull-col">
+                <div class="ai-debate-header text-green">
+                  <span>🟢 多方研究员观点 (Bull Thesis)</span>
+                </div>
+                <div class="ai-debate-body" id="aiBullThesis">
+                  加载多方论据...
+                </div>
+              </div>
+              <div class="ai-debate-col bear-col">
+                <div class="ai-debate-header text-danger">
+                  <span>🔴 空方研究员警示 (Bear Thesis)</span>
+                </div>
+                <div class="ai-debate-body" id="aiBearThesis">
+                  加载空方论据...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 投决会量化订单二次裁决看板 -->
+          <div class="ai-order-review-panel">
+            <div class="ai-order-review-header">
+              <div class="ai-review-title-group">
+                <h4 class="ai-review-title">📋 投决会对量化调仓计划的二次裁决 (AI Order Review)</h4>
+                <span class="panel-tag badge-gold" id="aiOrderReviewBadge">0 笔订单审核</span>
+              </div>
+              <div class="ai-review-summary-tag" id="aiOrderReviewSummary">量化算法调仓订单二次风控审核</div>
+            </div>
+            <div class="table-container">
+              <table class="live-table" id="aiOrderReviewTable">
+                <thead>
+                  <tr>
+                    <th>标的代码</th>
+                    <th>量化原计划</th>
+                    <th>投决会裁决状态</th>
+                    <th>建议调整后执行</th>
+                    <th>投决会审核意见与风控理由</th>
+                  </tr>
+                </thead>
+                <tbody id="aiOrderReviewTableBody">
+                  <tr><td colspan="5" class="text-center text-muted">暂无量化订单待审核</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 标的细分配置指导 -->
+          <div class="ai-guidance-footer">
+            <div class="ai-guidance-item">
+              <span class="ai-guidance-tag">🎯 核心底仓指导:</span>
+              <span id="aiCoreGuidance" class="ai-guidance-val">--</span>
+            </div>
+            <div class="ai-guidance-item">
+              <span class="ai-guidance-tag">🛰️ 卫星配置指导:</span>
+              <span id="aiSatelliteGuidance" class="ai-guidance-val">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- [一] 资金概况看板 (6 个核心指标，含策略预算与保护资金) -->
+        <div class="live-metrics-grid-6">
+          <div class="live-card">
+            <div class="live-card-title" id="liveNavTitle">账户总资产 (Total NAV)</div>
+            <div class="live-card-value text-gold" id="liveNavVal">--</div>
+            <div class="live-card-sub" id="liveNavSub">实时连通中...</div>
+          </div>
+          <div class="live-card">
+            <div class="live-card-title">🎯 策略运行规模 (Allocated)</div>
+            <div class="live-card-value text-purple" id="liveStratNavVal">--</div>
+            <div class="live-card-sub" id="liveStratNavSub">占总资金: 100.0%</div>
+          </div>
+          <div class="live-card">
+            <div class="live-card-title">🛡️ 隔离保护资产 (Protected)</div>
+            <div class="live-card-value text-muted" id="liveProtectedVal">$0.00</div>
+            <div class="live-card-sub" id="liveProtectedSub">非策略自主资产/闲置现金</div>
+          </div>
+          <div class="live-card">
+            <div class="live-card-title">可用现金 (Cash)</div>
+            <div class="live-card-value text-green" id="liveCashVal">--</div>
+            <div class="live-card-sub" id="liveCashSub">现金占比: --%</div>
+          </div>
+          <div class="live-card">
+            <div class="live-card-title">证券持仓市值 (Market Val)</div>
+            <div class="live-card-value text-blue" id="liveMktVal">--</div>
+            <div class="live-card-sub" id="liveMktSub">-- 只标的持有中</div>
+          </div>
+          <div class="live-card">
+            <div class="live-card-title">累计浮动盈亏 (Unrealized)</div>
+            <div class="live-card-value" id="liveTotalPnlVal">--</div>
+            <div class="live-card-sub" id="liveTotalPnlSub">浮动收益率: --</div>
+          </div>
+        </div>
+
+        <!-- [二] 组合核心风险监控指标看板 (6 项专业风控量化指标) -->
+        <div class="risk-metrics-grid-6">
+          <div class="risk-card">
+            <div class="risk-card-title">🎯 持仓穿透 Beta (vs QQQ)</div>
+            <div class="risk-card-value text-purple" id="riskHoldingBeta">--</div>
+            <div class="risk-card-sub">OLS 回归 Beta: <span id="riskOlsBeta">0.737</span></div>
+          </div>
+          <div class="risk-card">
+            <div class="risk-card-title">🛡️ 95% 单日在险价值 (VaR)</div>
+            <div class="risk-card-value text-danger" id="riskVarVal">--</div>
+            <div class="risk-card-sub">预估风险金额: <span id="riskVarDollar">--</span></div>
+          </div>
+          <div class="risk-card">
+            <div class="risk-card-title">📈 策略年化夏普 (Sharpe)</div>
+            <div class="risk-card-value text-green" id="riskSharpeVal">1.18</div>
+            <div class="risk-card-sub">基准 QQQ: <span id="riskQqqSharpe">0.88</span> | IR: +0.53</div>
+          </div>
+          <div class="risk-card">
+            <div class="risk-card-title">🌊 组合年化波动率 (Vol)</div>
+            <div class="risk-card-value text-blue" id="riskVolVal">24.6%</div>
+            <div class="risk-card-sub">策略目标波动率: <span id="riskTargetVol">25.0%</span></div>
+          </div>
+          <div class="risk-card">
+            <div class="risk-card-title">⚡ 动态目标杠杆 (Leverage)</div>
+            <div class="risk-card-value text-gold" id="riskLeverageVal">1.56x</div>
+            <div class="risk-card-sub">宏观状态: <strong id="riskRegimeVal" class="text-purple">BULL_GROWTH</strong></div>
+          </div>
+          <div class="risk-card">
+            <div class="risk-card-title">📉 历史最大回撤 (Max DD)</div>
+            <div class="risk-card-value text-danger" id="riskMaxDdVal">-28.4%</div>
+            <div class="risk-card-sub">基准 QQQ 回撤: <span id="riskQqqMaxDd">-35.1%</span></div>
+          </div>
+        </div>
+
+        <!-- [三] 核心-卫星策略实时净值走势大图看板 -->
+        <div class="live-equity-panel">
+          <div class="live-chart-header">
+            <div class="live-chart-title-area">
+              <h3 class="panel-title">📈 核心-卫星策略净值走势 vs QQQ 基准对比</h3>
+              <div class="live-chart-stats">
+                <span>策略累计总回报: <strong id="chartTotalReturn" class="text-green">+1011.8%</strong></span>
+                <span>QQQ 基准回报: <strong id="chartQqqReturn">+580.1%</strong></span>
+                <span>超额收益 (Alpha): <strong id="chartAlpha" class="text-purple">+431.7%</strong></span>
+              </div>
+            </div>
+            <div class="range-pills" id="navRangePills">
+              <button class="range-pill-btn" data-range="1M">近1月</button>
+              <button class="range-pill-btn" data-range="3M">近3月</button>
+              <button class="range-pill-btn" data-range="1Y">近1年</button>
+              <button class="range-pill-btn active" data-range="ALL">全部历史</button>
+            </div>
+          </div>
+          <div id="liveEquityChart" style="width: 100%; height: 380px;"></div>
+        </div>
+
+        <!-- [四] 当前持仓与目标配置对比 -->
+        <div class="live-split-grid">
+          <div class="live-panel">
+            <div class="panel-header">
+              <h3 class="panel-title" id="posTableTitle">📦 美股实盘账户实际持仓明细</h3>
+              <span class="panel-tag" id="posCountTag">0 标的</span>
+            </div>
+            <div class="table-container">
+              <table class="live-table" id="positionsTable">
+                <thead>
+                  <tr>
+                    <th>标的代码</th>
+                    <th>标的名称 / 策略定位</th>
+                    <th>持股数</th>
+                    <th>成本价</th>
+                    <th>最新现价</th>
+                    <th>持仓市值</th>
+                    <th>浮动盈亏</th>
+                    <th>标的Beta</th>
+                    <th>持仓占比</th>
+                  </tr>
+                </thead>
+                <tbody id="positionsTableBody">
+                  <tr><td colspan="9" class="text-center">加载持仓中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="live-panel">
+            <div class="panel-header">
+              <h3 class="panel-title">🎯 Core-Satellite 目标配置权重</h3>
+              <span class="panel-tag badge-purple">当前最新生成</span>
+            </div>
+            <div class="target-weights-container" id="targetWeightsContainer">
+              <div class="text-center text-muted">加载策略目标配置中...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 调仓交易清单与报单计划 -->
+        <div class="live-panel full-panel">
+          <div class="panel-header">
+            <h3 class="panel-title" id="ordersTableTitle">📋 待执行调仓交易清单 (计划订单)</h3>
+            <div class="panel-header-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <div class="history-select-group">
+                <label for="historyAdviceSelect" style="font-size: 12px; color: var(--color-gray-600); font-weight: 600;">📅 建议历史回顾:</label>
+                <select id="historyAdviceSelect" class="history-advice-select">
+                  <option value="live" selected>⚡ 当前最新实时建议</option>
+                </select>
+              </div>
+              <span class="panel-tag badge-gold" id="orderCountTag">0 笔订单</span>
+            </div>
+          </div>
+          <div class="history-review-banner hidden" id="historyReviewBanner">
+            <span class="history-banner-text" id="historyReviewText">🔍 正在回顾历史调仓建议...</span>
+            <button class="btn btn-secondary btn-xs" id="backToLiveAdviceBtn">⚡ 返回最新实时建议</button>
+          </div>
+          <div class="table-container">
+            <table class="live-table" id="ordersTable">
+              <thead>
+                <tr>
+                  <th>标的代码</th>
+                  <th>交易方向</th>
+                  <th>变动股数</th>
+                  <th>参考限价</th>
+                  <th>预估金额</th>
+                  <th>目标权重</th>
+                  <th>触发原因</th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody">
+                <tr><td colspan="7" class="text-center">正在计算策略信号...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 实时系统控制台日志 -->
+        <div class="live-panel full-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">🖥️ 实时系统与调仓执行日志 (Live Terminal)</h3>
+            <div class="panel-header-right">
+              <button class="btn btn-secondary btn-xs" id="clearTerminalBtn">清屏</button>
+              <label class="terminal-auto-scroll"><input type="checkbox" id="autoScrollLog" checked> 自动滚动</label>
+            </div>
+          </div>
+          <div class="live-terminal" id="liveTerminalOutput">
+            <div class="terminal-line">[SYSTEM] 实时监控控制台已就绪...</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 关停系统全屏状态模态框 -->
+  <div class="shutdown-overlay hidden" id="shutdownOverlay">
+    <div class="shutdown-card">
+      <div class="shutdown-icon">🛑</div>
+      <h2 class="shutdown-title">策略后台服务已安全停止</h2>
+      <p class="shutdown-desc">
+        所有策略后台进程（Web 监控面板、飞书双向守护、行情订阅）已全部安全终止。<br>
+        系统端口 <strong>5000</strong> 及后台内存已完全释放，无残留脚本运行。
+      </p>
+      <div class="shutdown-tip-box">
+        <strong>💡 提示：</strong> 您现在可以随时关闭此网页标签页。<br>
+        下次需要启动时，只需双击桌面上的 <strong>【美股策略系统】</strong> 快捷方式即可一键重新启动并打开看板。
+      </div>
+      <button class="btn btn-secondary" onclick="window.close()">关闭此标签页</button>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+{
+  "feishu": {
+    "app_id": "cli_xxxxxxxxxxxxxxxx",
+    "app_secret": "YOUR_FEISHU_APP_SECRET_HERE",
+    "bot_open_id": "ou_xxxxxxxxxxxxxxxx",
+    "bot_name": "美股策略助手",
+    "webhook_url": "",
+    "chat_id": "oc_xxxxxxxxxxxxxxxx",
+    "user_id": "ou_xxxxxxxxxxxxxxxx"
+  },
+  "moomoo": {
+    "host": "127.0.0.1",
+    "port": 11111,
+    "env": "SIMULATE"
+  },
+  "strategy": {
+    "active_version": "v1.0-production",
+    "versions": {
+      "v1.0-production": {
+        "name": "v1.0 生产固化版 (推荐)",
+        "tag": "推荐·全周期验证",
+        "description": "经10年全周期与宏观压力测试验证的最优稳健配置：核心50%+卫星50%，目标波动率25%，动态杠杆0.6x~1.8x，6%调仓缓冲",
+        "core_ratio": 0.5,
+        "satellite_ratio": 0.5,
+        "target_vol": 0.25,
+        "min_leverage": 0.6,
+        "max_leverage": 1.8,
+        "rebalance_buffer": 0.06,
+        "top_n": 2,
+        "cagr": 27.35,
+        "sharpe": 1.16,
+        "max_dd": -27.14
+      },
+      "v1.0-aggressive": {
+        "name": "v1.0 进取增强版 (高弹性)",
+        "tag": "进攻·牛市弹性",
+        "description": "高动量进取配置：核心40%+卫星60%，目标波动率28%，动态杠杆0.7x~2.0x，5%调仓缓冲，半导体与科技倾斜度更高",
+        "core_ratio": 0.4,
+        "satellite_ratio": 0.6,
+        "target_vol": 0.28,
+        "min_leverage": 0.7,
+        "max_leverage": 2.0,
+        "rebalance_buffer": 0.05,
+        "top_n": 3,
+        "cagr": 26.63,
+        "sharpe": 1.14,
+        "max_dd": -27.14
+      },
+      "v1.0-conservative": {
+        "name": "v1.0 稳健防守版 (低回撤)",
+        "tag": "防守·极致风控",
+        "description": "防守型稳健配置：核心60%+卫星40%，目标波动率20%，动态杠杆0.5x~1.5x，7%调仓缓冲，最大回撤严格压降",
+        "core_ratio": 0.6,
+        "satellite_ratio": 0.4,
+        "target_vol": 0.2,
+        "min_leverage": 0.5,
+        "max_leverage": 1.5,
+        "rebalance_buffer": 0.07,
+        "top_n": 2,
+        "cagr": 25.85,
+        "sharpe": 1.12,
+        "max_dd": -26.72
+      }
+    },
+    "core_ratio": 0.5,
+    "satellite_ratio": 0.5,
+    "target_vol": 0.25,
+    "min_leverage": 0.6,
+    "max_leverage": 1.8,
+    "rebalance_buffer": 0.06
+  }
+}
